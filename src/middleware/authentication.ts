@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { ERROR_MESSAGES } from "../constants/messages";
+import redisClient from "../utils/redis-client";
 
 const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET!;
 export const authenticate = async (
@@ -11,6 +12,13 @@ export const authenticate = async (
   const token = req.headers.authorization?.split(" ")[1];
   if (!token) {
     res.status(401).send(ERROR_MESSAGES.UNAUTHORIZED);
+    return;
+  }
+
+  const blacklisted = await redisClient.get(token);
+
+  if (blacklisted) {
+    res.status(401).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
     return;
   }
 

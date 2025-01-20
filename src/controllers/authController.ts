@@ -1,9 +1,9 @@
 import bcrypt from "bcrypt";
 import { Request, Response } from "express";
-
 import User from "../models/User";
 import { SUCCESS_MESSAGES, ERROR_MESSAGES } from "../constants/messages";
 import { generateAccessToken, generateRefreshToken } from "../utils/jwt";
+import redisClient from "../utils/redis-client";
 
 export const signup = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
@@ -55,4 +55,21 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const logout = async (req: Request, res: Response): Promise<void> => {};
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(400).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
+    return;
+  }
+
+  const accessToken = authHeader.split(" ")[1];
+
+  try {
+    await redisClient.set(accessToken, "blacklisted", "PX", 300000);
+
+    res.status(204).json({ message: SUCCESS_MESSAGES.LOGOUT_SUCCESSFUL });
+  } catch (error) {
+    res.status(401).json({ error: ERROR_MESSAGES.UNAUTHORIZED });
+  }
+};
